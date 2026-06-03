@@ -66,4 +66,8 @@ public class BookService {
         }
         return false;
     }
+
+    public List<Book> getLatestBooks() {
+        return bookRepository.findTop5ByOrderByIdDesc();
+    }
 }

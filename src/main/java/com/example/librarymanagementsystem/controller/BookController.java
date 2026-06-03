@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
+@CrossOrigin(origins = "*", allowedHeaders = "*", methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE})
 @RequestMapping("/books")
 public class BookController {
 
@@ -54,5 +55,9 @@ public class BookController {
             return ResponseEntity.ok("Kitap kaydı silindi.");
         }
         return ResponseEntity.notFound().build();
+    }
+    @GetMapping("/latest")
+    public ResponseEntity<List<Book>> getLatestBooks() {
+        return ResponseEntity.ok(bookService.getLatestBooks());
     }
 }

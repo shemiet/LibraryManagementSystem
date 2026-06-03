@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kütüphane Yönetim Sistemi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen font-sans">
+
+    <header class="bg-blue-600 text-white p-4 shadow-md">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-2xl font-bold">📚 Kütüphane Yönetim Sistemi</h1>
+            <div class="flex items-center space-x-4">
+                <span id="current-user-status" class="bg-blue-700 px-3 py-1 rounded text-sm font-medium">
+                    Aktif Rol: Giriş Yapılmadı
+                </span>
+                <button onclick="logout()" class="bg-red-500 hover:bg-red-600 px-3 py-1 rounded text-sm transition">
+                    Çıkış Yap
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="container mx-auto p-6 space-y-6">
+
+        <section id="login-section" class="bg-white p-6 rounded-lg shadow-md max-w-md mx-auto">
+            <h2 class="text-xl font-semibold mb-4 text-gray-700 border-b pb-2">Kullanıcı Girişi (Basic Auth)</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-600">Kullanıcı Adı</label>
+                    <input type="text" id="username" placeholder="ogrenci veya kutuphaneci" class="w-full mt-1 p-2 border rounded focus:ring focus:ring-blue-300 outline-none">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-600">Şifre</label>
+                    <input type="password" id="password" placeholder="1234 veya admin123" class="w-full mt-1 p-2 border rounded focus:ring focus:ring-blue-300 outline-none">
+                </div>
+                <button onclick="login()" class="w-full bg-blue-600 hover:bg-blue-700 text-white p-2 rounded font-medium transition">
+                    Sisteme Bağlan
+                </button>
+            </div>
+        </section>
+
+        <section id="admin-section" class="bg-white p-6 rounded-lg shadow-md hidden">
+            <h2 id="form-title" class="text-xl font-semibold mb-4 text-gray-700 border-b pb-2">Yeni Kitap Ekle (Kütüphaneci)</h2>
+            <form id="book-form" onsubmit="handleFormSubmit(event)" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                <input type="hidden" id="book-id">
+                <div>
+                    <label class="block text-sm font-medium text-gray-600">Kitap Adı</label>
+                    <input type="text" id="book-title" required class="w-full mt-1 p-2 border rounded outline-none">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-600">Yazar</label>
+                    <input type="text" id="book-author" required class="w-full mt-1 p-2 border rounded outline-none">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-600">ISBN</label>
+                    <input type="text" id="book-isbn" class="w-full mt-1 p-2 border rounded outline-none">
+                </div>
+                <div class="flex space-x-2">
+                    <button type="submit" id="submit-btn" class="flex-1 bg-green-600 hover:bg-green-700 text-white p-2 rounded font-medium transition">
+                        Kaydet
+                    </button>
+                    <button type="button" id="cancel-btn" onclick="resetForm()" class="hidden bg-gray-500 hover:bg-gray-600 text-white p-2 rounded font-medium transition">
+                        İptal
+                    </button>
+                </div>
+            </form>
+        </section>
+
+        <section id="library-section" class="bg-white p-6 rounded-lg shadow-md hidden">
+            <h2 class="text-xl font-semibold mb-4 text-gray-700 border-b pb-2">Mevcut Kitaplar</h2>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-gray-100 text-gray-600 text-sm uppercase">
+                            <th class="p-3 border-b">ID</th>
+                            <th class="p-3 border-b">Kitap Adı</th>
+                            <th class="p-3 border-b">Yazar</th>
+                            <th class="p-3 border-b">ISBN</th>
+                            <th class="p-3 border-b">Durum</th>
+                            <th id="actions-header" class="p-3 border-b hidden">İşlemler</th>
+                        </tr>
+                    </thead>
+                    <tbody id="books-table-body" class="text-gray-700 divide-y">
+                        </tbody>
+                </table>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        // BACKEND TAM URL TANIMI (CORS problemini tamamen çözer)
+        const API_URL = 'http://localhost:8080/books';
+        let authHeader = '';
+        let currentRole = '';
+
+        // Sayfa yenilendiğinde oturumu koru
+        window.onload = function() {
+            const savedAuth = localStorage.getItem('library_auth');
+            const savedRole = localStorage.getItem('library_role');
+            if (savedAuth && savedRole) {
+                authHeader = savedAuth;
+                currentRole = savedRole;
+                uiConfig();
+                fetchBooks();
+            }
+        };
+
+        // Oturum Açma
+        function login() {
+            const userInp = document.getElementById('username').value.trim();
+            const passInp = document.getElementById('password').value.trim();
+
+            if (!userInp || !passInp) {
+                alert('Lütfen kullanıcı adı ve şifre alanlarını doldurun.');
+                return;
+            }
+
+            // Basic Authentication Base64 şifreleme
+            authHeader = 'Basic ' + btoa(userInp + ':' + passInp);
+            currentRole = (userInp === 'kutuphaneci') ? 'ADMIN' : 'USER';
+
+            localStorage.setItem('library_auth', authHeader);
+            localStorage.setItem('library_role', currentRole);
+
+            uiConfig();
+            fetchBooks();
+        }
+
+        // Oturum Kapatma
+        function logout() {
+            localStorage.clear();
+            authHeader = '';
+            currentRole = '';
+            document.getElementById('login-section').classList.remove('hidden');
+            document.getElementById('admin-section').classList.add('hidden');
+            document.getElementById('library-section').classList.add('hidden');
+            document.getElementById('current-user-status').innerText = 'Aktif Rol: Giriş Yapılmadı';
+            document.getElementById('username').value = '';
+            document.getElementById('password').value = '';
+        }
+
+        // UI Rol Ayarı
+        function uiConfig() {
+            document.getElementById('login-section').classList.add('hidden');
+            document.getElementById('library-section').classList.remove('hidden');
+            
+            if (currentRole === 'ADMIN') {
+                document.getElementById('admin-section').classList.remove('hidden');
+                document.getElementById('actions-header').classList.remove('hidden');
+                document.getElementById('current-user-status').innerText = '🛡️ Rol: Kütüphaneci (ADMIN)';
+            } else {
+                document.getElementById('admin-section').classList.add('hidden');
+                document.getElementById('actions-header').classList.add('hidden');
+                document.getElementById('current-user-status').innerText = '👨‍🎓 Rol: Öğrenci (USER)';
+            }
+        }
+
+        // Verileri Çekme (GET)
+        function fetchBooks() {
+            fetch(API_URL, {
+                method: 'GET',
+                headers: { 
+                    'Authorization': authHeader,
+                    'Accept': 'application/json'
+                }
+            })
+            .then(res => {
+                if (!res.ok) throw new Error('Bağlantı reddedildi! Kullanıcı adı veya şifre hatalı olabilir.');
+                return res.json();
+            })
+            .then(books => {
+                const tbody = document.getElementById('books-table-body');
+                tbody.innerHTML = '';
+
+                books.forEach(book => {
+                    const tr = document.createElement('tr');
+                    tr.className = "hover:bg-gray-50 transition";
+                    
+                    let actionButtons = '';
+                    if (currentRole === 'ADMIN') {
+                        actionButtons = `
+                            <td class="p-3 border-b space-x-2">
+                                <button onclick="editBook(${book.id}, '${book.title.replace(/'/g, "\\'")}', '${book.author.replace(/'/g, "\\'")}', '${book.isbn || ''}')" class="text-blue-600 hover:text-blue-900 font-medium text-sm">Düzenle</button>
+                                <button onclick="deleteBook(${book.id})" class="text-red-600 hover:text-red-900 font-medium text-sm">Sil</button>
+                            </td>`;
+                    }
+
+                    tr.innerHTML = `
+                        <td class="p-3 border-b font-semibold text-gray-500">${book.id}</td>
+                        <td class="p-3 border-b font-medium">${book.title}</td>
+                        <td class="p-3 border-b text-gray-600">${book.author}</td>
+                        <td class="p-3 border-b text-sm text-gray-500">${book.isbn || '-'}</td>
+                        <td class="p-3 border-b">
+                            <span class="px-2 py-1 rounded text-xs font-bold ${book.isAvailable ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
+                                ${book.isAvailable ? 'Mevcut' : 'Ödünç Verildi'}
+                            </span>
+                        </td>
+                        ${actionButtons}
+                    `;
+                    tbody.appendChild(tr);
+                });
+            })
+            .catch(err => {
+                alert(err.message);
+                logout();
+            });
+        }
+
+        // Ekleme ve Güncelleme Gönderimi (POST / PUT)
+        function handleFormSubmit(e) {
+            e.preventDefault();
+            
+            const id = document.getElementById('book-id').value;
+            const title = document.getElementById('book-title').value.trim();
+            const author = document.getElementById('book-author').value.trim();
+            const isbn = document.getElementById('book-isbn').value.trim();
+
+            const bookData = { title, author, isbn, isAvailable: true };
+
+            const requestUrl = id ? `${API_URL}/${id}` : API_URL;
+            const requestMethod = id ? 'PUT' : 'POST';
+
+            fetch(requestUrl, {
+                method: requestMethod,
+                headers: {
+                    'Authorization': authHeader,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify(bookData)
+            })
+            .then(res => {
+                if (res.ok) {
+                    resetForm();
+                    fetchBooks();
+                } else { 
+                    alert('İşlem başarısız! Kitap adı en az 2 karakter olmalıdır.'); 
+                }
+            })
+            .catch(err => alert('Sunucu bağlantı hatası oluştu.'));
+        }
+
+        // Düzenleme Modunu Aç
+        function editBook(id, title, author, isbn) {
+            document.getElementById('book-id').value = id;
+            document.getElementById('book-title').value = title;
+            document.getElementById('book-author').value = author;
+            document.getElementById('book-isbn').value = isbn === 'undefined' ? '' : isbn;
+
+            document.getElementById('form-title').innerText = "Kitap Düzenle (ID: " + id + ")";
+            document.getElementById('submit-btn').innerText = "Güncelle";
+            document.getElementById('cancel-btn').classList.remove('hidden');
+        }
+
+        // Formu Sıfırla
+        function resetForm() {
+            document.getElementById('book-id').value = '';
+            document.getElementById('book-form').reset();
+            document.getElementById('form-title').innerText = "Yeni Kitap Ekle (Kütüphaneci)";
+            document.getElementById('submit-btn').innerText = "Kaydet";
+            document.getElementById('cancel-btn').classList.add('hidden');
+        }
+
+        // Silme İşlemi (DELETE)
+        function deleteBook(id) {
+            if (confirm('Bu kitap kaydını silmek istediğinize emin misiniz?')) {
+                fetch(`${API_URL}/${id}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': authHeader }
+                })
+                .then(res => {
+                    if (res.ok) {
+                        fetchBooks();
+                    } else {
+                        alert('Silme işlemi başarısız veya yetkiniz yok.');
+                    }
+                })
+                .catch(err => alert('Bağlantı hatası oluştu.'));
+            }
+        }
+    </script>
+</body>
+</html>
